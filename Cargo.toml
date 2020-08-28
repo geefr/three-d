@@ -15,7 +15,7 @@ exclude = ["/examples", ".gitignore"]
 [features]
 default = ["glutin-window", "canvas", "3d-io", "image-io"]
 glutin-window = ["glutin"] # Default window for desktop (only available when NOT building for the wasm32 architecture)
-canvas = [] # Default window for web (only available when building for the wasm32 architecture)
+canvas = ["serde"] # Default window for web (only available when building for the wasm32 architecture)
 image-io = ["image"] # Additional image functionality, for example loading an image to a texture
 3d-io = ["serde", "bincode"]
 no-renderer = [] # Does not include the deferred renderer, but only core OpenGL/WebGL functionality.
@@ -39,6 +39,7 @@ version = "0.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
 version = "0.2"
+features = ['serde-serialize']
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
 version = "0.3"

@@ -1,10 +1,11 @@
 
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{JsCast,JsValue};
 use web_sys::WebGl2RenderingContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 use crate::frame_input::*;
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug)]
 pub enum Error {
@@ -13,6 +14,47 @@ pub enum Error {
     PerformanceError {message: String},
     EventListenerError {message: String}
 }
+
+/**
+ * The attributes required on the context
+ * Default values should be sensible for most use cases
+ * - If a value isn't specified here then it's left up to the browser to define
+ */
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[allow(non_snake_case)]
+struct CanvasContextAttribs {
+    // TODO: Disabled members need to be at the top - get a syntax error if there's comments before the closing }
+    /// Whether the canvas contains an alpha channel
+    // alpha : bool,
+
+    /// Whether there's a stencil buffer (at least 8 bits)
+    // stencil : bool,
+
+    /// Whether the canvas paint should be async with event loop
+    desynchronized : bool,
+    /// Whether to enable anti aliasing
+    antialias : bool,
+    /// Whether there's a depth buffer (at least 16 bits)
+    depth : bool,
+    /// Whether to fail context creation if there's no hardware gl support/running on low end system
+    failIfMajorPerformanceCaveat : bool,
+    /// Hint to request a specific gpu configuration ["default", "high-performance", "low-power"]
+    powerPreference : String,
+    /// Indicates to the compositor that the drawing buffer contains colours with pre-multiplied alpha
+    premultipliedAlpha : bool,
+    /// Whether the context is xr compatible
+    xrCompatible : bool,
+}
+impl Default for CanvasContextAttribs { fn default() -> Self { CanvasContextAttribs {
+    // alpha : true,
+    desynchronized : true,
+    antialias : true,
+    depth : true,
+    failIfMajorPerformanceCaveat : true,
+    powerPreference : String::from("high-performance"),
+    premultipliedAlpha : true,
+    xrCompatible : false,
+}}}
 
 pub struct Window
 {
@@ -27,7 +69,6 @@ impl Window
     {
         Window::new(title, 512, 512)
     }
-
     pub fn new(_title: &str, _width: u32, _height: u32) -> Result<Window, Error>
     {
         let window = web_sys::window().ok_or(Error::WindowCreationError {message: "Unable to create web window".to_string()})?;
@@ -35,8 +76,11 @@ impl Window
         let canvas = document.get_element_by_id("canvas").ok_or(Error::WindowCreationError {message: "Unable to get canvas, is the id different from 'canvas'?".to_string()})?;
         let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>().map_err(|e| Error::WindowCreationError {message: format!("Unable to convert to HtmlCanvasElement. Error code: {:?}", e)})?;
 
+        let context_attribs = CanvasContextAttribs::default();
+        let context_attribs_js = JsValue::from_serde(&context_attribs).map_err(|e| Error::WindowCreationError {message: format!("Failed to setup Canvas context attributes. Error code: {:?}", e)})?;
+
         let context = canvas
-            .get_context("webgl2").map_err(|e| Error::ContextError {message: format!("Unable to get webgl2 context for the given canvas. Maybe your browser doesn't support WebGL2? Error code: {:?}", e)})?
+            .get_context_with_context_options("webgl2", &context_attribs_js).map_err(|e| Error::ContextError {message: format!("Unable to get webgl2 context for the given canvas. Maybe your browser doesn't support WebGL2? Error code: {:?}", e)})?
             .ok_or(Error::ContextError {message: "Unable to get webgl2 context for the given canvas. Maybe your browser doesn't support WebGL2?".to_string()})?
             .dyn_into::<WebGl2RenderingContext>().map_err(|e| Error::ContextError {message: format!("Unable to get webgl2 context for the given canvas. Maybe your browser doesn't support WebGL2? Error code: {:?}", e)})?;
         context.get_extension("EXT_color_buffer_float").map_err(|e| Error::ContextError {message: format!("Unable to get EXT_color_buffer_float extension for the given context. Maybe your browser doesn't support the get color_buffer_float extension? Error code: {:?}", e)})?;
